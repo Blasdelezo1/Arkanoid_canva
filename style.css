@@ -1,0 +1,12 @@
+ body {
+     background-color: #111;
+ }
+
+ canvas {
+
+     border-bottom: transparent;
+     background: url('./images/SP_Background.png') no-repeat center center;
+     background-size: cover;
+     margin: 0 auto;
+     display: block;
+ }
