@@ -13,22 +13,30 @@
         }
 
         canvas {
-            border: 4px solid #fff;
+
             border-bottom: transparent;
-            background: #000;
+            background: url('./images/SP_Background.png') no-repeat center center;
+            background-size: cover;
             margin: 0 auto;
             display: block;
         }
     </style>
-    <canvas>
+    <canvas></canvas>
 
-    </canvas>
+    <img hidden id="sprite" src="./images/Sprite_arkanoid.png" alt="sprite arkanoid">
+    <img hidden id="bricks" src="./images/bricks.png" alt="bricks">
 
     <script>
         const canvas = document.querySelector('canvas')
         const ctx = canvas.getContext('2d')//se pueden usar otros valores 'webgl', bitmaprenderer...o3d
-        canvas.width = 448
-        canvas.height = 400
+
+        const $sprite = document.querySelector('#sprite')
+        const $bricks = document.querySelector('#bricks')
+
+        const paddleImg = new Image()
+        paddleImg.src = './images/SP_Paddle_01.png'
+        canvas.width = 470
+        canvas.height = 500
 
         //variable sde la pelota!!
         const ballRadius = 4
@@ -36,7 +44,7 @@
         let x = canvas.width / 2
         let y = canvas.height - 30
         //velocidad
-        let dx = -3
+        let dx = -2
         let dy = -3
 
         //VARIABLES DE LA BARRA
@@ -53,7 +61,39 @@
 
         const PADDLE_SENSIBILITY = 7
 
+        const borderWidth = 10
 
+        //Variables de los ladrillos
+
+        const brickRowCount = 6
+        const brickColumnCount = 13
+        const brickWidth = 30
+        const brickHeight = 14
+        const brickPadd = 2
+        const brickOfSetTop = 80
+        const bricksOfSetLeft = 30
+        const bricks = []
+
+        const brickStatus = {
+            active: 1,
+            destroyed: 0
+        }
+
+        for (let c = 0; c < brickColumnCount; c++) {
+            bricks[c] = [] //inicializamos con array vacio
+            for (let r = 0; r < brickRowCount; r++) {
+                const brickX = c * (brickWidth + brickPadd) + bricksOfSetLeft
+                const brickY = r * (brickHeight + brickPadd) + brickOfSetTop
+
+                const randomColor = Math.floor(Math.random() * 8)
+                bricks[c][r] = {
+                    x: brickX,
+                    y: brickY,
+                    status: brickStatus,
+                    color: randomColor
+                }
+            }
+        }
 
 
         function drawBall() {
@@ -64,8 +104,9 @@
             ctx.closePath()
         }
         function drawPaddle() {
-            ctx.fillStyle = '#09f'
-            ctx.fillRect(
+
+            ctx.drawImage(
+                paddleImg,
                 paddleX, //coordenada x
                 paddleY,//coodernada y
                 paddleWidth,//ancho
@@ -73,22 +114,117 @@
             )
         }
 
-        function drawBricks() { }
+        function drawBricks() {
+            for (let c = 0; c < brickColumnCount; c++) {
+                for (let r = 0; r < brickRowCount; r++) {
+                    const currentBrick = bricks[c][r]
+                    if (currentBrick.status === brickStatus.destroyed) continue
+
+                    // ctx.fillStyle = 'red'
+                    // ctx.rect(
+                    //     currentBrick.x,
+                    //     currentBrick.y,
+                    //     brickWidth,
+                    //     brickHeight,
+
+                    // )
+                    // ctx.stroke()//borde
+                    // ctx.fill()//relleno
+
+                    const clipX = currentBrick.color * 32
+
+                    ctx.drawImage(
+                        $bricks,
+                        clipX,
+                        0,
+                        32,
+                        14,
+                        currentBrick.x,
+                        currentBrick.y,
+                        brickWidth,
+                        brickHeight
+                    )
+
+                }
+            }
+        }
         function drawScore() { }
         function drawLives() { }
 
+        function intercept(x1, y1, x2, y2, x3, y3, x4, y4, side) {
+            const denom = (y4 - y3) * (x2 - x1) - (x4 - x3) * (y2 - y1);
+            if (denom === 0) return null; // líneas paralelas
+
+            const ua = ((x4 - x3) * (y1 - y3) - (y4 - y3) * (x1 - x3)) / denom;
+            const ub = ((x2 - x1) * (y1 - y3) - (y2 - y1) * (x1 - x3)) / denom;
+
+            if (ua >= 0 && ua <= 1 && ub >= 0 && ub <= 1) {
+                return {
+                    x: x1 + ua * (x2 - x1),
+                    y: y1 + ua * (y2 - y1),
+                    side: side
+                };
+            }
+
+            return null;
+        }
+        function ballInterceptBrick(ball, b) {
+            var pt;
+            if (ball.dx < 0) {
+                pt = intercept(ball.x, ball.y,
+                    ball.x + ball.dx, ball.y + ball.dy,
+                    b.x + brickWidth, b.y,
+                    b.x + brickWidth, b.y + brickHeight, "RIGHT");
+            }
+            if (!pt && ball.dx > 0) {
+                pt = intercept(ball.x, ball.y,
+                    ball.x + ball.dx, ball.y + ball.dy,
+                    b.x, b.y,
+                    b.x, b.y + brickHeight, "LEFT");
+            }
+            if (!pt && ball.dy < 0) {
+                pt = intercept(ball.x, ball.y,
+                    ball.x + ball.dx, ball.y + ball.dy,
+                    b.x, b.y + brickHeight,
+                    b.x + brickWidth, b.y + brickHeight, "BOTTOM");
+            }
+            if (!pt && ball.dy > 0) {
+                pt = intercept(ball.x, ball.y,
+                    ball.x + ball.dx, ball.y + ball.dy,
+                    b.x, b.y,
+                    b.x + brickWidth, b.y, "TOP");
+            }
+            return pt;
+        }
 
         function collisionDetection() {
+            for (let c = 0; c < brickColumnCount; c++) {
+                for (let r = 0; r < brickRowCount; r++) {
+                    const currentBrick = bricks[c][r];
+                    if (currentBrick.status === brickStatus.destroyed) continue;
 
+                    const pt = ballInterceptBrick({ x: x, y: y, dx: dx, dy: dy }, { x: currentBrick.x, y: currentBrick.y });
+
+                    if (pt) {
+                        if (pt.side === "RIGHT" || pt.side === "LEFT") {
+                            dx = -dx;
+                        } else {
+                            dy = -dy;
+                        }
+                        currentBrick.status = brickStatus.destroyed;
+                    }
+                }
+            }
         }
+
         function ballMovement() {
 
             //reobotes dercha / izq
-            if (x + dx > canvas.width - ballRadius || x + dx < 0) {
+            if (x + dx > canvas.width - ballRadius - borderWidth || x + dx < ballRadius + borderWidth) {
                 dx = -dx
             }
             //rebote top   
-            if (y + dy < ballRadius) {
+            if (y + dy < ballRadius + borderWidth) {
                 dy = -dy
             }
 
@@ -107,9 +243,9 @@
             y += dy
         }
         function paddleMovement() {
-            if (righPress && paddleX < canvas.width - paddleWidth) {
+            if (righPress && paddleX < canvas.width - paddleWidth - borderWidth) {
                 paddleX += PADDLE_SENSIBILITY
-            } else if (leftPress && paddleX > 0) {
+            } else if (leftPress && paddleX > borderWidth) {
                 paddleX -= PADDLE_SENSIBILITY
             }
         }
@@ -142,7 +278,6 @@
 
         function draw() {
             cleanCanvas()
-            console.log('hola')
             //dibujar los elementos
             drawBall()
             drawPaddle()
